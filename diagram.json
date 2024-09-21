@@ -4,19 +4,40 @@
   "editor": "wokwi",
   "parts": [
     { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-dht22", "id": "dht1", "top": 0.3, "left": 129, "attrs": {} },
+    { "type": "wokwi-led", "id": "led1", "top": -51.6, "left": -169, "attrs": { "color": "red" } },
     {
-      "type": "wokwi-pushbutton",
-      "id": "btn1",
-      "top": 111.8,
-      "left": 172.8,
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": -3.6,
+      "left": -169,
       "attrs": { "color": "green" }
+    },
+    { "type": "wokwi-led", "id": "led3", "top": 44.4, "left": -169, "attrs": { "color": "blue" } },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": 246.4,
+      "left": -90.4,
+      "attrs": { "pins": "i2c" }
     }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
-    [ "btn1:1.l", "esp:17", "green", [ "h0" ] ],
-    [ "btn1:2.l", "esp:16", "green", [ "h0" ] ]
+    [ "dht1:SDA", "esp:4", "green", [ "v0" ] ],
+    [ "dht1:VCC", "esp:5V", "red", [ "v105.6", "h-120.19" ] ],
+    [ "dht1:GND", "esp:CMD", "black", [ "v115.2", "h-163.2", "v-38.4" ] ],
+    [ "lcd1:GND", "esp:CMD", "black", [ "h-9.6", "v-86.4" ] ],
+    [ "lcd1:VCC", "esp:5V", "red", [ "h-19.2", "v-86.3" ] ],
+    [ "lcd1:SDA", "esp:21", "blue", [ "h-28.8", "v-307", "h230.4", "v86.4" ] ],
+    [ "lcd1:SCL", "esp:22", "green", [ "h-38.4", "v-306.9", "h230.4", "v48" ] ],
+    [ "led3:C", "esp:CMD", "black", [ "v105.6", "h58" ] ],
+    [ "led2:C", "led3:C", "black", [ "v0" ] ],
+    [ "led1:C", "led2:C", "black", [ "v0" ] ],
+    [ "led3:A", "esp:12", "#8f4814", [ "v0" ] ],
+    [ "led2:A", "esp:14", "orange", [ "v0", "h9.6", "v96" ] ],
+    [ "led1:A", "esp:27", "gold", [ "v0", "h38.4", "v134.4" ] ]
   ],
   "dependencies": {}
 }

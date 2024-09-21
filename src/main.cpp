@@ -1,10 +1,14 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <DHT.h>
 
-/******************************************************************
- * Functions declireation 
- ******************************************************************/
-void toTerminal();
-void ANNTrain();
+#define DHTPIN 4
+#define DHTTYPE DHT22 // or DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+#define LEDCold     12
+#define LEDComfort  14
+#define LEDHot      27
 
 /******************************************************************
    ArduinoANN - An artificial neural network for the Arduino
@@ -19,50 +23,51 @@ void ANNTrain();
    Network Configuration - customized per network
  ******************************************************************/
 
-const int PatternCount = 10;
-const int InputNodes = 7;
-const int HiddenNodes = 8;
-const int OutputNodes = 4;
+const int PatternCount = 6;
+const int InputNodes = 2;
+const int HiddenNodes = 6;
+const int OutputNodes = 3;
 const float LearningRate = 0.3;
 const float Momentum = 0.9;
 const float InitialWeightMax = 0.5;
 const float Success = 0.0004;
 
 /* The input data - represents an input pattern */
-const byte Input[PatternCount][InputNodes] = {
-  { 1, 1, 1, 1, 1, 1, 0 },  // 0
-  { 0, 1, 1, 0, 0, 0, 0 },  // 1
-  { 1, 1, 0, 1, 1, 0, 1 },  // 2
-  { 1, 1, 1, 1, 0, 0, 1 },  // 3
-  { 0, 1, 1, 0, 0, 1, 1 },  // 4
-  { 1, 0, 1, 1, 0, 1, 1 },  // 5
-  { 0, 0, 1, 1, 1, 1, 1 },  // 6
-  { 1, 1, 1, 0, 0, 0, 0 },  // 7
-  { 1, 1, 1, 1, 1, 1, 1 },  // 8
-  { 1, 1, 1, 0, 0, 1, 1 }   // 9
+const float Input[PatternCount][InputNodes] = {
+  {0.2, 0.3}, // Cold/Dry
+  {0.3, 0.4}, // Cold/Dry
+  {0.5, 0.5}, // Comfortable
+  {0.6, 0.6}, // Comfortable
+  {0.8, 0.7}, // Hot/Humid
+  {0.9, 0.8}  // Hot/Humid
 };
 
 /* The target data - represents the desired output for each input pattern. */
 const byte Target[PatternCount][OutputNodes] = {
-  { 0, 0, 0, 0 },
-  { 0, 0, 0, 1 },
-  { 0, 0, 1, 0 },
-  { 0, 0, 1, 1 },
-  { 0, 1, 0, 0 },
-  { 0, 1, 0, 1 },
-  { 0, 1, 1, 0 },
-  { 0, 1, 1, 1 },
-  { 1, 0, 0, 0 },
-  { 1, 0, 0, 1 }
+  {1, 0, 0}, // Cold
+  {1, 0, 0}, // Cold
+  {0, 1, 0}, // Comfortable
+  {0, 1, 0}, // Comfortable
+  {0, 0, 1}, // Hot
+  {0, 0, 1}  // Hot
 };
-
-void ANNInference(const byte newInput[InputNodes], float predictedOutput[OutputNodes]);
 
 /******************************************************************
    End Network Configuration
  ******************************************************************/
 
 
+
+/******************************************************************
+ * Functions declireation 
+ ******************************************************************/
+void toTerminal();
+void ANNTrain();
+void ANNInference(const float newInput[InputNodes], float predictedOutput[OutputNodes]);
+
+/******************************************************************
+ * Variables declireation 
+ ******************************************************************/
 int i, j, p, q, r;
 int ReportEvery1000;
 int RandomizedIndex[PatternCount];
@@ -84,6 +89,11 @@ float ChangeOutputWeights[HiddenNodes + 1][OutputNodes]; /* store the change in 
 void setup()
 {
   Serial.begin(9600);
+  dht.begin();
+  pinMode(LEDCold,    OUTPUT);
+  pinMode(LEDComfort, OUTPUT);
+  pinMode(LEDHot,     OUTPUT);
+
   randomSeed(analogRead(3));
   ReportEvery1000 = 1;
   for ( p = 0 ; p < PatternCount ; p++ )
@@ -95,14 +105,28 @@ void setup()
 
 void loop()
 {
+  // Read sensor values
+  float temp = dht.readTemperature(); // in Celsius
+  float hum = dht.readHumidity();     // in %
+
+  if (isnan(temp) || isnan(hum))
+  {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  // Normalize inputs (assuming temp range 0-50°C and hum 0-100%)
+  float normTemp = temp / 50.0;
+  float normHum = hum / 100.0;
+
   // Define a new input pattern you want to test
-  const byte newInput[InputNodes] = {1, 1, 1, 1, 0, 0, 1}; // Example new input
+  const float newInput[InputNodes] = {normTemp, normHum}; // Example new input
   float predictedOutput[OutputNodes];
   uint8_t predictedOutputIO[OutputNodes];
 
   // Run inference with the trained weights
   ANNInference(newInput, predictedOutput);
-  // Output the result
+  // Output the result as 1 or 0 only
   Serial.println("Prediction for new input 0-1:");
   for (int i = 0; i < OutputNodes; i++)
   {
@@ -112,6 +136,29 @@ void loop()
   }
   Serial.println();
 
+  // Determine the category with the highest output value
+  int predictedCategory = 0;
+  float maxVal = predictedOutput[0];
+  for (int i = 1; i < OutputNodes; i++)
+  {
+    if (predictedOutput[i] > maxVal) {
+      maxVal = predictedOutput[i];
+      predictedCategory = i;
+    }
+  }
+
+  // Control LEDs based on classification
+  digitalWrite(LEDCold,     predictedCategory == 0 ? HIGH : LOW);
+  digitalWrite(LEDComfort,  predictedCategory == 1 ? HIGH : LOW);
+  digitalWrite(LEDHot,      predictedCategory == 2 ? HIGH : LOW);
+
+  // Optional: Print classification to Serial Monitor
+  Serial.print("Temp: "); Serial.print(temp);
+  Serial.print("°C, Humidity: "); Serial.print(hum);
+  Serial.print("% => ");
+  if (predictedCategory == 0)       Serial.println("Cold/Dry");
+  else if (predictedCategory == 1)  Serial.println("Comfortable");
+  else if (predictedCategory == 2)  Serial.println("Hot/Humid");
 
   // Add a delay for demonstration purposes
   delay(5000);
@@ -360,7 +407,7 @@ void toTerminal()
   }
 }
 
-void ANNInference(const byte newInput[InputNodes], float predictedOutput[OutputNodes])
+void ANNInference(const float newInput[InputNodes], float predictedOutput[OutputNodes])
 {
   float Hidden[HiddenNodes];
   float Output[OutputNodes];
