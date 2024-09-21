@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "author": "Mohamed Yousry (MMyrali)",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 111.8,
+      "left": 172.8,
+      "attrs": { "color": "green" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "btn1:1.l", "esp:17", "green", [ "h0" ] ],
+    [ "btn1:2.l", "esp:16", "green", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}
